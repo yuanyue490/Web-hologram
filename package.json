@@ -1,0 +1,26 @@
+{
+  "name": "web-hologram",
+  "version": "0.1.0",
+  "description": "基于Three.js的全息界面可视化编辑器",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "three.js",
+    "hologram",
+    "3d",
+    "webgl",
+    "gltf"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.10"
+  }
+} 
