@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 /**
  * 控制面板类
  * 提供UI界面控制场景和全息效果
@@ -42,6 +44,8 @@ export class ControlPanel {
     this.container.style.backdropFilter = 'blur(10px)';
     this.container.style.boxShadow = '0 0 10px rgba(0, 170, 255, 0.5)';
     this.container.style.border = '1px solid rgba(0, 170, 255, 0.3)';
+    this.container.style.maxHeight = '90vh';
+    this.container.style.overflowY = 'auto';
     
     // 设置面板位置
     switch (this.options.position) {
@@ -78,6 +82,9 @@ export class ControlPanel {
     
     // 添加模型控制部分
     this.addModelControls();
+    
+    // 添加环境控制部分
+    this.addEnvironmentControls();
     
     // 添加全息效果控制部分
     this.addHologramControls();
@@ -232,12 +239,388 @@ export class ControlPanel {
     section.appendChild(clearButton);
     
     // 添加默认模型按钮
-    const defaultModelButton = this.createButton('加载默认模型', () => {
-      this.sceneManager.addDefaultObject();
+    const defaultModelButton = this.createButton('加载默认模型', async () => {
+      try {
+        // 加载toilet模型
+        const { loadGLTFModel } = await import('../utils/modelLoader.js');
+        const model = await loadGLTFModel('/models/Toilet.glb');
+        if (model) {
+          this.sceneManager.addModel(model, { scale: 1.0 });
+          this.showMessage('默认模型加载成功', 'success');
+        }
+      } catch (error) {
+        console.error('加载默认模型失败:', error);
+        this.showMessage('加载默认模型失败，使用基础几何体', 'error');
+        this.sceneManager.addDefaultObject();
+      }
     });
     section.appendChild(defaultModelButton);
     
     this.container.appendChild(section);
+  }
+  
+  /**
+   * 添加环境控制部分
+   */
+  addEnvironmentControls() {
+    const section = this.createSection('环境控制');
+    
+    // 添加环境类型选择
+    const envTypeContainer = document.createElement('div');
+    envTypeContainer.style.marginBottom = '15px';
+    
+    const envTypeLabel = document.createElement('label');
+    envTypeLabel.textContent = '环境类型:';
+    envTypeLabel.style.display = 'block';
+    envTypeLabel.style.marginBottom = '5px';
+    envTypeContainer.appendChild(envTypeLabel);
+    
+    // 创建环境类型选择按钮组
+    const buttonGroup = document.createElement('div');
+    buttonGroup.style.display = 'flex';
+    buttonGroup.style.justifyContent = 'space-between';
+    buttonGroup.style.marginBottom = '10px';
+    
+    // 渐变天空球按钮
+    const gradientButton = this.createButton('渐变天空球', () => {
+      try {
+        this.sceneManager.setGradientSkybox({
+          topColor: new THREE.Color(this.environmentControls.topColor.value),
+          bottomColor: new THREE.Color(this.environmentControls.bottomColor.value),
+          offset: parseFloat(this.environmentControls.offset),
+          exponent: parseFloat(this.environmentControls.exponent)
+        });
+        this.showEnvironmentSection('gradient');
+        this.showMessage('已切换到渐变天空球', 'success');
+      } catch (error) {
+        console.error('设置渐变天空球失败:', error);
+        this.showMessage('设置渐变天空球失败: ' + error.message, 'error');
+      }
+    });
+    gradientButton.style.flex = '1';
+    gradientButton.style.margin = '0 5px';
+    buttonGroup.appendChild(gradientButton);
+    
+    // 纯色天空球按钮
+    const solidColorButton = this.createButton('纯色天空球', () => {
+      try {
+        this.sceneManager.setSolidColorSkybox(
+          new THREE.Color(this.environmentControls.solidColor.value)
+        );
+        this.showEnvironmentSection('solid');
+        this.showMessage('已切换到纯色天空球', 'success');
+      } catch (error) {
+        console.error('设置纯色天空球失败:', error);
+        this.showMessage('设置纯色天空球失败: ' + error.message, 'error');
+      }
+    });
+    solidColorButton.style.flex = '1';
+    solidColorButton.style.margin = '0 5px';
+    buttonGroup.appendChild(solidColorButton);
+    
+    // HDR环境按钮
+    const hdrButton = this.createButton('HDR环境', async () => {
+      try {
+        // 显示加载中提示
+        this.showMessage('正在加载HDR环境贴图...');
+        
+        // 加载默认HDR环境贴图
+        await this.sceneManager.setHDREnvironment('/HDR/christmas_photo_studio_05_1k.hdr');
+        
+        // 显示成功消息
+        this.showMessage('HDR环境贴图加载成功', 'success');
+        
+        // 显示HDR控制部分
+        this.showEnvironmentSection('hdr');
+        
+        // 更新当前HDR文件名显示
+        const hdrFileNameDisplay = document.querySelector('.hdr-filename');
+        if (hdrFileNameDisplay) {
+          hdrFileNameDisplay.textContent = 'christmas_photo_studio_05_1k.hdr';
+        }
+      } catch (error) {
+        console.error('HDR环境加载失败:', error);
+        this.showMessage('HDR环境加载失败: ' + error.message, 'error');
+      }
+    });
+    hdrButton.style.flex = '1';
+    hdrButton.style.margin = '0 5px';
+    buttonGroup.appendChild(hdrButton);
+    
+    envTypeContainer.appendChild(buttonGroup);
+    section.appendChild(envTypeContainer);
+    
+    // 创建环境控制容器
+    this.environmentControls = {};
+    
+    // 渐变天空球控制
+    const gradientSection = document.createElement('div');
+    gradientSection.id = 'gradient-controls';
+    gradientSection.style.marginBottom = '15px';
+    gradientSection.style.display = 'block'; // 默认显示
+    
+    // 顶部颜色选择器
+    const topColorContainer = document.createElement('div');
+    topColorContainer.style.marginBottom = '10px';
+    
+    const topColorLabel = document.createElement('label');
+    topColorLabel.textContent = '顶部颜色: ';
+    topColorLabel.style.display = 'block';
+    topColorLabel.style.marginBottom = '5px';
+    topColorContainer.appendChild(topColorLabel);
+    
+    const topColorInput = document.createElement('input');
+    topColorInput.type = 'color';
+    topColorInput.value = '#00aaff';
+    topColorInput.style.width = '100%';
+    topColorInput.style.height = '30px';
+    topColorInput.style.border = 'none';
+    topColorInput.style.borderRadius = '4px';
+    topColorInput.style.cursor = 'pointer';
+    
+    topColorInput.addEventListener('input', () => {
+      try {
+        this.sceneManager.setGradientSkybox({
+          topColor: new THREE.Color(topColorInput.value),
+          bottomColor: new THREE.Color(this.environmentControls.bottomColor.value),
+          offset: parseFloat(this.environmentControls.offset),
+          exponent: parseFloat(this.environmentControls.exponent)
+        });
+      } catch (error) {
+        console.error('更新渐变顶部颜色失败:', error);
+      }
+    });
+    
+    topColorContainer.appendChild(topColorInput);
+    gradientSection.appendChild(topColorContainer);
+    this.environmentControls.topColor = topColorInput;
+    
+    // 底部颜色选择器
+    const bottomColorContainer = document.createElement('div');
+    bottomColorContainer.style.marginBottom = '10px';
+    
+    const bottomColorLabel = document.createElement('label');
+    bottomColorLabel.textContent = '底部颜色: ';
+    bottomColorLabel.style.display = 'block';
+    bottomColorLabel.style.marginBottom = '5px';
+    bottomColorContainer.appendChild(bottomColorLabel);
+    
+    const bottomColorInput = document.createElement('input');
+    bottomColorInput.type = 'color';
+    bottomColorInput.value = '#171320';
+    bottomColorInput.style.width = '100%';
+    bottomColorInput.style.height = '30px';
+    bottomColorInput.style.border = 'none';
+    bottomColorInput.style.borderRadius = '4px';
+    bottomColorInput.style.cursor = 'pointer';
+    
+    bottomColorInput.addEventListener('input', () => {
+      try {
+        this.sceneManager.setGradientSkybox({
+          topColor: new THREE.Color(this.environmentControls.topColor.value),
+          bottomColor: new THREE.Color(bottomColorInput.value),
+          offset: parseFloat(this.environmentControls.offset),
+          exponent: parseFloat(this.environmentControls.exponent)
+        });
+      } catch (error) {
+        console.error('更新渐变底部颜色失败:', error);
+      }
+    });
+    
+    bottomColorContainer.appendChild(bottomColorInput);
+    gradientSection.appendChild(bottomColorContainer);
+    this.environmentControls.bottomColor = bottomColorInput;
+    
+    // 渐变偏移滑块
+    const offsetSlider = this.addSlider(gradientSection, '渐变偏移', 0, 1, 0.4, 0.01, (value) => {
+      try {
+        this.environmentControls.offset = value;
+        this.sceneManager.setGradientSkybox({
+          topColor: new THREE.Color(this.environmentControls.topColor.value),
+          bottomColor: new THREE.Color(this.environmentControls.bottomColor.value),
+          offset: value,
+          exponent: parseFloat(this.environmentControls.exponent)
+        });
+      } catch (error) {
+        console.error('更新渐变偏移失败:', error);
+      }
+    });
+    this.environmentControls.offset = 0.4;
+    
+    // 渐变指数滑块
+    const exponentSlider = this.addSlider(gradientSection, '渐变指数', 0.1, 2, 0.6, 0.01, (value) => {
+      try {
+        this.environmentControls.exponent = value;
+        this.sceneManager.setGradientSkybox({
+          topColor: new THREE.Color(this.environmentControls.topColor.value),
+          bottomColor: new THREE.Color(this.environmentControls.bottomColor.value),
+          offset: parseFloat(this.environmentControls.offset),
+          exponent: value
+        });
+      } catch (error) {
+        console.error('更新渐变指数失败:', error);
+      }
+    });
+    this.environmentControls.exponent = 0.6;
+    
+    section.appendChild(gradientSection);
+    
+    // 纯色天空球控制
+    const solidSection = document.createElement('div');
+    solidSection.id = 'solid-controls';
+    solidSection.style.marginBottom = '15px';
+    solidSection.style.display = 'none'; // 默认隐藏
+    
+    // 纯色选择器
+    const solidColorContainer = document.createElement('div');
+    solidColorContainer.style.marginBottom = '10px';
+    
+    const solidColorLabel = document.createElement('label');
+    solidColorLabel.textContent = '背景颜色: ';
+    solidColorLabel.style.display = 'block';
+    solidColorLabel.style.marginBottom = '5px';
+    solidColorContainer.appendChild(solidColorLabel);
+    
+    const solidColorInput = document.createElement('input');
+    solidColorInput.type = 'color';
+    solidColorInput.value = '#000000';
+    solidColorInput.style.width = '100%';
+    solidColorInput.style.height = '30px';
+    solidColorInput.style.border = 'none';
+    solidColorInput.style.borderRadius = '4px';
+    solidColorInput.style.cursor = 'pointer';
+    
+    solidColorInput.addEventListener('input', () => {
+      try {
+        this.sceneManager.setSolidColorSkybox(new THREE.Color(solidColorInput.value));
+      } catch (error) {
+        console.error('更新纯色天空球失败:', error);
+      }
+    });
+    
+    solidColorContainer.appendChild(solidColorInput);
+    solidSection.appendChild(solidColorContainer);
+    this.environmentControls.solidColor = solidColorInput;
+    
+    section.appendChild(solidSection);
+    
+    // HDR环境控制
+    const hdrSection = document.createElement('div');
+    hdrSection.id = 'hdr-controls';
+    hdrSection.style.marginBottom = '15px';
+    hdrSection.style.display = 'none'; // 默认隐藏
+    
+    // HDR文件输入
+    const hdrFileContainer = document.createElement('div');
+    hdrFileContainer.style.marginBottom = '10px';
+    
+    const hdrFileLabel = document.createElement('label');
+    hdrFileLabel.textContent = 'HDR环境贴图: ';
+    hdrFileLabel.style.display = 'block';
+    hdrFileLabel.style.marginBottom = '5px';
+    hdrFileContainer.appendChild(hdrFileLabel);
+    
+    const hdrFileInput = document.createElement('input');
+    hdrFileInput.type = 'file';
+    hdrFileInput.accept = '.hdr';
+    hdrFileInput.style.width = '100%';
+    hdrFileInput.style.marginBottom = '10px';
+    hdrFileInput.style.color = '#0af';
+    hdrFileInput.style.display = 'none'; // 隐藏实际的文件输入
+    
+    hdrFileInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      try {
+        // 显示加载中提示
+        this.showMessage('正在加载HDR环境贴图...');
+        
+        // 创建文件URL
+        const fileURL = URL.createObjectURL(file);
+        
+        // 设置HDR环境
+        await this.sceneManager.setHDREnvironment(fileURL);
+        
+        // 显示成功消息
+        this.showMessage('HDR环境贴图加载成功', 'success');
+        
+        // 更新当前HDR文件名显示
+        const hdrFileNameDisplay = hdrSection.querySelector('.hdr-filename');
+        if (hdrFileNameDisplay) {
+          hdrFileNameDisplay.textContent = file.name;
+        }
+      } catch (error) {
+        console.error('HDR环境贴图加载失败:', error);
+        this.showMessage('HDR环境贴图加载失败: ' + error.message, 'error');
+      }
+    });
+    
+    hdrFileContainer.appendChild(hdrFileInput);
+    this.environmentControls.hdrFileInput = hdrFileInput;
+    
+    // 创建自定义文件选择按钮
+    const customFileButton = this.createButton('选择HDR文件', () => {
+      hdrFileInput.click();
+    });
+    customFileButton.style.width = '100%';
+    hdrFileContainer.appendChild(customFileButton);
+    
+    // 添加当前HDR文件名显示
+    const hdrFileNameDisplay = document.createElement('div');
+    hdrFileNameDisplay.className = 'hdr-filename';
+    hdrFileNameDisplay.textContent = '未选择文件';
+    hdrFileNameDisplay.style.marginTop = '5px';
+    hdrFileNameDisplay.style.fontSize = '12px';
+    hdrFileNameDisplay.style.color = '#0af';
+    hdrFileContainer.appendChild(hdrFileNameDisplay);
+    
+    hdrSection.appendChild(hdrFileContainer);
+    
+    // 添加曝光度控制滑块
+    const exposureSlider = this.addSlider(hdrSection, '曝光度', 0.1, 2, 1.0, 0.01, (value) => {
+      try {
+        if (this.sceneManager.renderer) {
+          this.sceneManager.renderer.toneMappingExposure = value;
+          this.sceneManager.renderFrame();
+        }
+      } catch (error) {
+        console.error('更新曝光度失败:', error);
+      }
+    });
+    
+    section.appendChild(hdrSection);
+    
+    this.container.appendChild(section);
+  }
+  
+  /**
+   * 显示指定的环境控制部分
+   * @param {string} type - 环境类型 ('gradient', 'solid', 'hdr')
+   */
+  showEnvironmentSection(type) {
+    // 获取所有环境控制部分
+    const gradientSection = document.getElementById('gradient-controls');
+    const solidSection = document.getElementById('solid-controls');
+    const hdrSection = document.getElementById('hdr-controls');
+    
+    // 隐藏所有部分
+    if (gradientSection) gradientSection.style.display = 'none';
+    if (solidSection) solidSection.style.display = 'none';
+    if (hdrSection) hdrSection.style.display = 'none';
+    
+    // 显示指定部分
+    switch (type) {
+      case 'gradient':
+        if (gradientSection) gradientSection.style.display = 'block';
+        break;
+      case 'solid':
+        if (solidSection) solidSection.style.display = 'block';
+        break;
+      case 'hdr':
+        if (hdrSection) hdrSection.style.display = 'block';
+        break;
+    }
   }
   
   /**

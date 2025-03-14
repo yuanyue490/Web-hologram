@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { HologramMaterial } from '../shaders/hologram/HologramMaterial.js';
+import { createGradientSkybox, createSolidColorSkybox } from '../utils/environmentLoader.js';
 
 /**
  * 场景管理器类
@@ -24,6 +25,8 @@ export class SceneManager {
     this.hologramMaterials = [];
     this.currentModel = null;
     this.isHologramEnabled = false;
+    this.skybox = null;
+    this.environmentMap = null;
     
     // 绑定方法到实例
     this.animate = this.animate.bind(this);
@@ -52,6 +55,8 @@ export class SceneManager {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
     this.container.appendChild(this.renderer.domElement);
     
     // 创建控制器
@@ -67,6 +72,119 @@ export class SceneManager {
     
     // 创建默认全息材质
     this.defaultHologramMaterial = new HologramMaterial();
+    
+    // 设置默认环境
+    this.setDefaultEnvironment();
+  }
+  
+  /**
+   * 设置默认环境
+   */
+  setDefaultEnvironment() {
+    // 创建默认渐变天空球
+    this.setDefaultGradientSkybox();
+  }
+  
+  /**
+   * 设置默认渐变天空球（作为备用）
+   */
+  setDefaultGradientSkybox() {
+    // 创建默认渐变天空球
+    const defaultSkybox = createGradientSkybox({
+      topColor: new THREE.Color(0x00aaff),
+      bottomColor: new THREE.Color(0x171320),
+      offset: 0.4,
+      exponent: 0.6
+    });
+    
+    this.setSkybox(defaultSkybox);
+  }
+  
+  /**
+   * 设置天空球
+   * @param {THREE.Mesh} skybox - 天空球网格
+   */
+  setSkybox(skybox) {
+    // 移除现有天空球
+    if (this.skybox) {
+      this.scene.remove(this.skybox);
+    }
+    
+    // 设置新天空球
+    this.skybox = skybox;
+    this.scene.add(this.skybox);
+    
+    // 更新场景背景
+    this.scene.background = null; // 清除纯色背景
+    
+    // 立即渲染一帧
+    this.renderFrame();
+  }
+  
+  /**
+   * 设置渐变天空球
+   * @param {Object} options - 渐变选项
+   */
+  setGradientSkybox(options = {}) {
+    const skybox = createGradientSkybox(options);
+    this.setSkybox(skybox);
+    
+    // 清除环境贴图
+    this.environmentMap = null;
+    this.scene.environment = null;
+    
+    return skybox;
+  }
+  
+  /**
+   * 设置纯色天空球
+   * @param {THREE.Color} color - 天空球颜色
+   */
+  setSolidColorSkybox(color) {
+    const skybox = createSolidColorSkybox(color);
+    this.setSkybox(skybox);
+    
+    // 清除环境贴图
+    this.environmentMap = null;
+    this.scene.environment = null;
+    
+    return skybox;
+  }
+  
+  /**
+   * 设置HDR环境贴图
+   * @param {string} url - HDR文件URL
+   * @returns {Promise} - 返回加载完成的Promise
+   */
+  async setHDREnvironment(url) {
+    try {
+      // 导入HDR加载器
+      const { loadHDREnvironment } = await import('../utils/environmentLoader.js');
+      
+      // 加载HDR环境贴图
+      const envMap = await loadHDREnvironment(url, this.renderer);
+      
+      // 设置环境贴图
+      this.environmentMap = envMap;
+      this.scene.environment = envMap;
+      
+      // 设置场景背景为环境贴图
+      this.scene.background = envMap;
+      
+      // 移除现有天空球
+      if (this.skybox) {
+        this.scene.remove(this.skybox);
+        this.skybox = null;
+      }
+      
+      // 立即渲染一帧
+      this.renderFrame();
+      
+      return envMap;
+    } catch (error) {
+      console.error('设置HDR环境贴图失败:', error);
+      throw new Error('设置HDR环境贴图失败: ' + error.message);
+    }
   }
   
   /**
@@ -229,6 +347,34 @@ export class SceneManager {
    * 添加默认几何体（当模型加载失败时使用）
    */
   addDefaultObject() {
+    // 尝试加载toilet模型
+    try {
+      // 动态导入模型加载器
+      import('../utils/modelLoader.js').then(({ loadGLTFModel }) => {
+        loadGLTFModel('/models/Toilet.glb').then(model => {
+          if (model) {
+            this.addModel(model, { scale: 1.0 });
+            console.log('默认toilet模型加载成功');
+            return;
+          }
+        }).catch(error => {
+          console.error('加载toilet模型失败，使用基础几何体:', error);
+          this.createFallbackObject();
+        });
+      }).catch(error => {
+        console.error('导入模型加载器失败:', error);
+        this.createFallbackObject();
+      });
+    } catch (error) {
+      console.error('加载默认模型过程中出错:', error);
+      this.createFallbackObject();
+    }
+  }
+  
+  /**
+   * 创建备用几何体（当模型加载完全失败时使用）
+   */
+  createFallbackObject() {
     // 创建一个基础几何体
     const geometry = new THREE.TorusKnotGeometry(1, 0.3, 100, 16);
     const material = new THREE.MeshStandardMaterial({ 

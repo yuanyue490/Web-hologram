@@ -38,10 +38,18 @@ async function init() {
     // 设置事件监听
     setupEventListeners(sceneManager);
     
-    // 使用默认几何体
-    console.log('使用默认几何体');
-    const defaultModel = createDefaultModel();
-    sceneManager.addModel(defaultModel);
+    // 尝试加载toilet模型作为默认模型
+    try {
+      console.log('加载toilet模型作为默认模型');
+      const model = await loadGLTFModel('/models/Toilet.glb');
+      if (model) {
+        sceneManager.addModel(model, { scale: 1.0 });
+      }
+    } catch (error) {
+      console.error('加载toilet模型失败，使用默认几何体:', error);
+      const defaultModel = createDefaultModel();
+      sceneManager.addModel(defaultModel);
+    }
     
     // 创建控制面板
     controlPanel = new ControlPanel(sceneManager, {
