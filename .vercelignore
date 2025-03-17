@@ -1,0 +1,7 @@
+.git
+node_modules
+.gitignore
+README.md
+.nvmrc
+.npmrc
+fix-main.js 
