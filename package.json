@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "基于Three.js的全息界面可视化编辑器",
   "main": "index.js",
+  "type": "module",
   "engines": {
     "node": ">=16.0.0"
   },
@@ -24,6 +25,7 @@
     "three": "^0.160.0"
   },
   "devDependencies": {
+    "terser": "^5.29.2",
     "vite": "^5.0.10"
   }
 } 
