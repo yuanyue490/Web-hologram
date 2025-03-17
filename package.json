@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "基于Three.js的全息界面可视化编辑器",
   "main": "index.js",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
